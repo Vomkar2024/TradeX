@@ -1,0 +1,1 @@
+# TradeX---Smart-stock-trading-and-portfolio-management.

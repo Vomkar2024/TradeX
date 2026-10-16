@@ -39,6 +39,24 @@ const userSchema = new mongoose.Schema(
   },
   {
     timestamps: true,
+    toJSON: {
+      virtuals: true,
+      transform: (doc, ret) => {
+        ret.Username = ret.Username || ret.username;
+        ret.UserType = ret.UserType || ret.usertype;
+        ret.cashBalance = ret.cashBalance !== undefined ? ret.cashBalance : ret.balance;
+        return ret;
+      },
+    },
+    toObject: {
+      virtuals: true,
+      transform: (doc, ret) => {
+        ret.Username = ret.Username || ret.username;
+        ret.UserType = ret.UserType || ret.usertype;
+        ret.cashBalance = ret.cashBalance !== undefined ? ret.cashBalance : ret.balance;
+        return ret;
+      },
+    },
   }
 );
 

@@ -15,7 +15,17 @@ export const GeneralContextProvider = ({ children }) => {
 
   const [token, setToken] = useState(() => localStorage.getItem("tradex_token") || "");
   const [loading, setLoading] = useState(true);
-  const [walletBalance, setWalletBalance] = useState(user?.cashBalance || 0);
+
+  // Helper to extract balance number from any user representation
+  const getBalanceFromUser = (u) => {
+    if (!u) return 0;
+    if (typeof u.cashBalance === "number") return u.cashBalance;
+    if (typeof u.balance === "number") return u.balance;
+    const parsed = parseFloat(u.cashBalance || u.balance);
+    return isNaN(parsed) ? 0 : parsed;
+  };
+
+  const [walletBalance, setWalletBalance] = useState(() => getBalanceFromUser(user));
   const [stocks, setStocks] = useState([]);
   const [stocksLoading, setStocksLoading] = useState(false);
   const [notification, setNotification] = useState(null);
@@ -37,9 +47,19 @@ export const GeneralContextProvider = ({ children }) => {
       setToken(tokenString);
     }
     if (userData) {
-      localStorage.setItem("tradex_user", JSON.stringify(userData));
-      setUser(userData);
-      setWalletBalance(userData.cashBalance ?? 0);
+      const balanceVal = getBalanceFromUser(userData);
+      const normalizedUser = {
+        ...userData,
+        cashBalance: balanceVal,
+        balance: balanceVal,
+        Username: userData.Username || userData.username || "Trader",
+        username: userData.username || userData.Username || "Trader",
+        UserType: userData.UserType || userData.usertype || "User",
+        usertype: userData.usertype || userData.UserType || "User",
+      };
+      localStorage.setItem("tradex_user", JSON.stringify(normalizedUser));
+      setUser(normalizedUser);
+      setWalletBalance(balanceVal);
     }
   };
 
@@ -81,9 +101,21 @@ export const GeneralContextProvider = ({ children }) => {
     if (!token) return;
     try {
       const res = await axiosInstance.get("/api/users/balance");
-      if (res.data && typeof res.data.cashBalance === "number") {
-        setWalletBalance(res.data.cashBalance);
-        setUser((prev) => (prev ? { ...prev, cashBalance: res.data.cashBalance } : prev));
+      const balanceVal =
+        typeof res.data?.cashBalance === "number"
+          ? res.data.cashBalance
+          : typeof res.data?.balance === "number"
+          ? res.data.balance
+          : null;
+
+      if (balanceVal !== null) {
+        setWalletBalance(balanceVal);
+        setUser((prev) => {
+          if (!prev) return prev;
+          const updated = { ...prev, cashBalance: balanceVal, balance: balanceVal };
+          localStorage.setItem("tradex_user", JSON.stringify(updated));
+          return updated;
+        });
       }
     } catch (err) {
       console.warn("Failed to refresh balance:", err.message);
@@ -99,9 +131,20 @@ export const GeneralContextProvider = ({ children }) => {
     try {
       const res = await axiosInstance.get("/api/users/profile");
       if (res.data?.user) {
-        setUser(res.data.user);
-        setWalletBalance(res.data.user.cashBalance ?? 0);
-        localStorage.setItem("tradex_user", JSON.stringify(res.data.user));
+        const u = res.data.user;
+        const balanceVal = getBalanceFromUser(u);
+        const normalizedUser = {
+          ...u,
+          cashBalance: balanceVal,
+          balance: balanceVal,
+          Username: u.Username || u.username || "Trader",
+          username: u.username || u.Username || "Trader",
+          UserType: u.UserType || u.usertype || "User",
+          usertype: u.usertype || u.UserType || "User",
+        };
+        setUser(normalizedUser);
+        setWalletBalance(balanceVal);
+        localStorage.setItem("tradex_user", JSON.stringify(normalizedUser));
       }
     } catch (err) {
       console.warn("Profile fetch failed / session expired:", err.message);
@@ -167,14 +210,39 @@ export const GeneralContextProvider = ({ children }) => {
   // Deposit virtual funds
   const depositFunds = async (amount, paymentMode = "UPI") => {
     try {
+      const numAmount = parseFloat(amount);
       const res = await axiosInstance.post("/api/transactions/deposit", {
-        Amount: parseFloat(amount),
+        amount: numAmount,
+        Amount: numAmount,
+        paymentMode: paymentMode,
         Payment_mode: paymentMode,
       });
       if (res.data?.success) {
-        showNotification(`Successfully deposited $${amount}!`, "success");
+        showNotification(
+          `Successfully deposited $${numAmount.toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}!`,
+          "success"
+        );
+        const newBal =
+          typeof res.data.cashBalance === "number"
+            ? res.data.cashBalance
+            : typeof res.data.balance === "number"
+            ? res.data.balance
+            : null;
+
+        if (newBal !== null) {
+          setWalletBalance(newBal);
+          setUser((prev) => {
+            if (!prev) return prev;
+            const updated = { ...prev, cashBalance: newBal, balance: newBal };
+            localStorage.setItem("tradex_user", JSON.stringify(updated));
+            return updated;
+          });
+        }
         await refreshBalance();
-        return { success: true, transaction: res.data.transaction };
+        return { success: true, transaction: res.data.transaction, cashBalance: newBal };
       }
       return { success: false, message: res.data?.message || "Deposit failed" };
     } catch (err) {
@@ -187,14 +255,39 @@ export const GeneralContextProvider = ({ children }) => {
   // Withdraw virtual funds
   const withdrawFunds = async (amount, paymentMode = "Bank Transfer") => {
     try {
+      const numAmount = parseFloat(amount);
       const res = await axiosInstance.post("/api/transactions/withdraw", {
-        Amount: parseFloat(amount),
+        amount: numAmount,
+        Amount: numAmount,
+        paymentMode: paymentMode,
         Payment_mode: paymentMode,
       });
       if (res.data?.success) {
-        showNotification(`Successfully withdrew $${amount}!`, "success");
+        showNotification(
+          `Successfully withdrew $${numAmount.toLocaleString(undefined, {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}!`,
+          "success"
+        );
+        const newBal =
+          typeof res.data.cashBalance === "number"
+            ? res.data.cashBalance
+            : typeof res.data.balance === "number"
+            ? res.data.balance
+            : null;
+
+        if (newBal !== null) {
+          setWalletBalance(newBal);
+          setUser((prev) => {
+            if (!prev) return prev;
+            const updated = { ...prev, cashBalance: newBal, balance: newBal };
+            localStorage.setItem("tradex_user", JSON.stringify(updated));
+            return updated;
+          });
+        }
         await refreshBalance();
-        return { success: true, transaction: res.data.transaction };
+        return { success: true, transaction: res.data.transaction, cashBalance: newBal };
       }
       return { success: false, message: res.data?.message || "Withdrawal failed" };
     } catch (err) {

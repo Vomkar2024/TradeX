@@ -197,9 +197,24 @@ const getUserProfile = async (req, res) => {
       });
     }
 
+    const balanceVal = typeof user.cashBalance === "number" 
+      ? user.cashBalance 
+      : (typeof user.balance === "number" ? user.balance : 0);
+
     return res.status(200).json({
       success: true,
-      user,
+      user: {
+        _id: user._id,
+        Username: user.Username || user.username,
+        username: user.username,
+        email: user.email,
+        UserType: user.UserType || user.usertype,
+        usertype: user.usertype,
+        cashBalance: balanceVal,
+        balance: balanceVal,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      },
     });
   } catch (error) {
     return res.status(500).json({
@@ -231,16 +246,24 @@ const updateUserProfile = async (req, res) => {
     if (password) user.password = password;
 
     const updatedUser = await user.save();
+    const balanceVal = typeof updatedUser.cashBalance === "number" 
+      ? updatedUser.cashBalance 
+      : (typeof updatedUser.balance === "number" ? updatedUser.balance : 0);
 
     return res.status(200).json({
       success: true,
       message: "Profile updated successfully.",
       user: {
         _id: updatedUser._id,
-        Username: updatedUser.Username,
+        Username: updatedUser.Username || updatedUser.username,
+        username: updatedUser.username,
         email: updatedUser.email,
-        UserType: updatedUser.UserType,
-        cashBalance: updatedUser.cashBalance,
+        UserType: updatedUser.UserType || updatedUser.usertype,
+        usertype: updatedUser.usertype,
+        cashBalance: balanceVal,
+        balance: balanceVal,
+        createdAt: updatedUser.createdAt,
+        updatedAt: updatedUser.updatedAt,
       },
     });
   } catch (error) {
@@ -259,7 +282,7 @@ const updateUserProfile = async (req, res) => {
  */
 const getWalletBalance = async (req, res) => {
   try {
-    const user = await User.findById(req.user._id).select("cashBalance Username");
+    const user = await User.findById(req.user._id).select("balance username");
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -267,9 +290,16 @@ const getWalletBalance = async (req, res) => {
       });
     }
 
+    const cashBalance = typeof user.cashBalance === "number"
+      ? user.cashBalance
+      : (typeof user.balance === "number" ? user.balance : 0);
+
     return res.status(200).json({
       success: true,
-      cashBalance: user.cashBalance,
+      cashBalance,
+      balance: cashBalance,
+      Username: user.Username || user.username,
+      username: user.username,
     });
   } catch (error) {
     return res.status(500).json({
@@ -288,10 +318,26 @@ const getWalletBalance = async (req, res) => {
 const getAllUsers = async (req, res) => {
   try {
     const users = await User.find({}).select("-password").sort({ createdAt: -1 });
+    const formattedUsers = users.map((u) => {
+      const balanceVal = typeof u.cashBalance === "number" ? u.cashBalance : (u.balance ?? 0);
+      return {
+        _id: u._id,
+        Username: u.Username || u.username,
+        username: u.username,
+        email: u.email,
+        UserType: u.UserType || u.usertype,
+        usertype: u.usertype,
+        cashBalance: balanceVal,
+        balance: balanceVal,
+        createdAt: u.createdAt,
+        updatedAt: u.updatedAt,
+      };
+    });
+
     return res.status(200).json({
       success: true,
-      count: users.length,
-      users,
+      count: formattedUsers.length,
+      users: formattedUsers,
     });
   } catch (error) {
     return res.status(500).json({
